@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Papa from 'papaparse'
 import { Container, Row, Col, Form, Table, Alert, Spinner, Badge } from 'react-bootstrap'
 
-// --- Utilidades de Formateo ---
+// --- Utilidades de Formateo (Se mantienen igual) ---
 function dateOnly(value) {
   const s = String(value ?? '').trim()
   if (!s) return ''
@@ -17,12 +17,7 @@ function leftOfDoubleDash(value) {
 }
 
 function normalizeHeader(s) {
-  return String(s ?? '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/\s+/g, ' ')
+  return String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ')
 }
 
 function normalizeRowKeys(row) {
@@ -33,29 +28,25 @@ function normalizeRowKeys(row) {
   return out
 }
 
-// CAMBIO: Nombre de la función exportada a Consultas
 export default function Consultas() {
-  // Se recomienda usar una variable específica en el .env para este módulo
   const csvUrl = import.meta.env.VITE_SHEET_SOLICITUDES_URL || import.meta.env.VITE_SHEET_CSV_URL
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [rows, setRows] = useState([])
-  const [selectedEmail, setSelectedEmail] = useState('')
+  const [selectedEmail, setSelectedEmail] = useState('') // Inicialmente vacío
 
-  const keys = useMemo(() => {
-    return {
-      email: normalizeHeader('Correo del instructor'),
-      marca: normalizeHeader('Marca temporal'),
-      aprob: normalizeHeader('Fecha de aprobación'),
-      nombreProg: normalizeHeader('NOMBRE DEL PROGRAMA DE FORMACIÓN'),
-      codigoProg: normalizeHeader('CODIGO DE PROGRAMA'),
-      ini: normalizeHeader('FECHA DE INICIO DE LA FORMACIÓN'),
-      fin: normalizeHeader('FECHA DE FINALIZACIÓN DE LA FORMACIÓN'),
-      ficha: normalizeHeader('Número de ficha'),
-      codSol: normalizeHeader('Código de solicitud'),
-    }
-  }, [])
+  const keys = useMemo(() => ({
+    email: normalizeHeader('Correo del instructor'),
+    marca: normalizeHeader('Marca temporal'),
+    aprob: normalizeHeader('Fecha de aprobación'),
+    nombreProg: normalizeHeader('NOMBRE DEL PROGRAMA DE FORMACIÓN'),
+    codigoProg: normalizeHeader('CODIGO DE PROGRAMA'),
+    ini: normalizeHeader('FECHA DE INICIO DE LA FORMACIÓN'),
+    fin: normalizeHeader('FECHA DE FINALIZACIÓN DE LA FORMACIÓN'),
+    ficha: normalizeHeader('Número de ficha'),
+    codSol: normalizeHeader('Código de solicitud'),
+  }), [])
 
   useEffect(() => {
     async function load() {
@@ -72,9 +63,8 @@ export default function Consultas() {
         
         const normalized = (parsed.data || []).map(normalizeRowKeys)
         setRows(normalized)
-
-        const emails = [...new Set(normalized.map(r => (r[keys.email] || '').trim()).filter(Boolean))].sort()
-        if (emails.length) setSelectedEmail(emails[0])
+        
+        // CAMBIO: Se eliminó la lógica que hacía setSelectedEmail(emails[0])
       } catch (e) {
         setError(e?.message || 'Error cargando datos')
       } finally {
@@ -82,7 +72,7 @@ export default function Consultas() {
       }
     }
     load()
-  }, [csvUrl, keys.email])
+  }, [csvUrl])
 
   const instructorEmails = useMemo(() => {
     return [...new Set(rows.map(r => (r[keys.email] || '').trim()).filter(Boolean))].sort()
@@ -112,31 +102,31 @@ export default function Consultas() {
               <Form.Select
                 value={selectedEmail}
                 onChange={(e) => setSelectedEmail(e.target.value)}
-                disabled={loading || instructorEmails.length === 0}
+                disabled={loading}
                 style={{ borderLeft: '5px solid #39A900', borderRadius: '8px' }}
               >
-                {instructorEmails.length === 0 ? (
-                  <option value="">(No hay correos encontrados)</option>
-                ) : (
-                  instructorEmails.map((em) => (
-                    <option key={em} value={em}>{em}</option>
-                  ))
-                )}
+                {/* CAMBIO: Opción por defecto siempre visible */}
+                <option value="">Seleccione correo</option>
+                
+                {instructorEmails.map((em) => (
+                  <option key={em} value={em}>{em}</option>
+                ))}
               </Form.Select>
             </Form.Group>
           </Col>
 
           <Col>
-            {loading ? (
-              <div className="d-flex align-items-center gap-2 mb-2">
-                <Spinner animation="grow" size="sm" variant="success" />
-                <span className="small text-muted">Procesando registros...</span>
-              </div>
-            ) : (
+            {!loading && (
               <div className="d-flex align-items-center gap-2 mb-2">
                 <Badge bg="success" pill style={{ padding: '8px 15px' }}>
                   {filtered.length} Solicitudes encontradas
                 </Badge>
+              </div>
+            )}
+            {loading && (
+              <div className="d-flex align-items-center gap-2 mb-2">
+                <Spinner animation="grow" size="sm" variant="success" />
+                <span className="small text-muted">Procesando registros...</span>
               </div>
             )}
           </Col>
@@ -169,12 +159,12 @@ export default function Consultas() {
                   </tr>
                 ))}
 
-                {!loading && filtered.length === 0 && (
+                {!loading && (filtered.length === 0 || !selectedEmail) && (
                   <tr>
                     <td colSpan={7} className="text-center py-5">
                       <div className="text-muted">
-                        <i className="bi bi-inbox fs-1 d-block mb-2"></i>
-                        No se encontraron registros para este criterio.
+                        <i className="bi bi-search fs-1 d-block mb-2"></i>
+                        {selectedEmail ? "No se encontraron registros para este criterio." : "Seleccione un correo para ver los resultados."}
                       </div>
                     </td>
                   </tr>
