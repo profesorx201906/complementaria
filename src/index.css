@@ -1,0 +1,27 @@
+:root {
+  --sena-green: #39A900;
+  --sena-dark: #1F7D5C;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f4f7f6;
+}
+
+/* Transición suave para el contenido cuando el menú se contrae */
+main {
+  transition: margin-left 0.3s ease-in-out;
+  min-height: 100vh;
+}
+
+.sena-card {
+  border-left: 5px solid var(--sena-green) !important;
+  transition: transform 0.2s;
+  cursor: pointer;
+}
+
+.sena-card:hover {
+  transform: translateX(5px);
+  background-color: #e9f5e9;
+}
