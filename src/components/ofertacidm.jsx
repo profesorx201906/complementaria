@@ -1,10 +1,11 @@
+// src/App.jsx
 import { useEffect, useMemo, useState } from 'react'
 import Papa from 'papaparse'
 import { Container, Row, Col, Alert, Spinner, Badge } from 'react-bootstrap'
 
 const SENA_GREEN = '#39A900'
 
-// --- Utilidades de Formateo (Se mantienen igual) ---
+// --- Utilidades de Formateo ---
 function ambienteEnOracion(value) {
   const s = String(value ?? '').trim()
   if (!s || s === '—') return '—'
@@ -30,12 +31,14 @@ function dateOnly(value) {
 function parseDateLoose(value) {
   const s = dateOnly(value)
   if (!s) return null
+  // Intenta formato ISO YYYY-MM-DD
   const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
   if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+  
+  // Intenta formato DD/MM/YYYY
   const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
   if (slash) {
-    const a = Number(slash[1]), b = Number(slash[2]), y = Number(slash[3])
-    let d = a > 12 ? a : b, m = a > 12 ? b : a
+    const d = Number(slash[1]), m = Number(slash[2]), y = Number(slash[3])
     return new Date(y, m - 1, d)
   }
   return null
@@ -55,8 +58,7 @@ function safeText(v, fallback = '—') {
   return s || fallback
 }
 
-// CAMBIO: Nombre de la función exportada
-export default function Ofertacidm() {
+export default function App() {
   const csvUrl = import.meta.env.VITE_SHEET_CSV_URL
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -90,22 +92,28 @@ export default function Ofertacidm() {
     load()
   }, [csvUrl])
 
+  // --- FILTRO CRÍTICO: Solo fechas vigentes ---
   const vigenteOrdenado = useMemo(() => {
     const today = startOfTodayLocal()
     return rows
       .filter(r => {
-        const d = parseDateLoose(r[keys.cierre])
-        return d && d >= today && String(r[keys.tipoOferta]).toLowerCase().includes('abierta')
+        const fechaCierre = parseDateLoose(r[keys.cierre])
+        // 1. Debe tener una fecha de cierre válida
+        // 2. La fecha de cierre debe ser hoy o en el futuro
+        // 3. (Opcional) Filtramos por oferta 'abierta' si aplica
+        const esVigente = fechaCierre && fechaCierre >= today
+        const esAbierta = String(r[keys.tipoOferta] ?? '').toLowerCase().includes('abierta')
+        
+        return esVigente && esAbierta
       })
       .sort((a, b) => (parseDateLoose(a[keys.cierre])?.getTime() || 0) - (parseDateLoose(b[keys.cierre])?.getTime() || 0))
   }, [rows, keys])
 
   return (
-    // CAMBIO: Se eliminó el div con background y minHeight porque ya lo provee el Layout principal
-    <div className="animate__animated animate__fadeIn">
+    <div style={{ background: '#f5f6f7', minHeight: '100vh', paddingBottom: '40px' }}>
       <style>{`
         .flip-wrap { perspective: 1000px; }
-        .flip-card { height: 310px; cursor: pointer; }
+        .flip-card { height: 320px; cursor: pointer; }
         .flip-inner {
           position: relative; width: 100%; height: 100%;
           transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); transform-style: preserve-3d;
@@ -118,7 +126,7 @@ export default function Ofertacidm() {
         .flip-front {
           background: ${SENA_GREEN}; color: white; display: flex;
           align-items: center; justify-content: center; text-align: center;
-          padding: 20px; font-weight: 800; font-size: 22px; line-height: 1.2;
+          padding: 20px; font-weight: 800; font-size: 20px; line-height: 1.2;
         }
         .flip-back {
           background: white; transform: rotateY(180deg);
@@ -135,14 +143,20 @@ export default function Ofertacidm() {
         .btn-link-custom:hover { background: #2d8500; color: white; }
       `}</style>
 
-      <Container fluid className="py-2">
+      <Container className="py-4">
         <div className="d-flex justify-content-between align-items-center mb-4">
-          <h2 style={{ fontWeight: 800, color: '#222' }}>Oferta Académica CIDM</h2>
+          <div>
+            <h2 style={{ fontWeight: 800, color: '#222', marginBottom: 0 }}>Oferta Académica CIDM</h2>
+          </div>
           <Badge bg="success" style={{ fontSize: '1rem' }}>{vigenteOrdenado.length} Programas</Badge>
         </div>
 
         {error && <Alert variant="danger">{error}</Alert>}
         {loading && <div className="text-center py-5"><Spinner animation="border" variant="success" /></div>}
+
+        {!loading && vigenteOrdenado.length === 0 && (
+          <Alert variant="info" className="text-center">No hay programas con inscripciones vigentes en este momento.</Alert>
+        )}
 
         <Row className="g-4">
           {vigenteOrdenado.map((r, idx) => {
@@ -151,7 +165,7 @@ export default function Ofertacidm() {
             const isFlipped = flippedKey === idx
 
             return (
-              <Col key={idx} xs={12} md={6} xl={4} className="flip-wrap">
+              <Col key={idx} xs={12} md={6} lg={4} className="flip-wrap">
                 <div className="flip-card" onClick={() => setFlippedKey(isFlipped ? null : idx)}>
                   <div className={`flip-inner ${isFlipped ? 'is-flipped' : ''}`}>
                     <div className="flip-face flip-front">{nombre}</div>
@@ -162,7 +176,10 @@ export default function Ofertacidm() {
                       <div className="kv"><span>Número de Ficha:</span> <span className="v">{ficha}</span></div>
                       <div className="kv"><span>Inicio Formación:</span> <span className="v">{dateOnly(r[keys.ini])}</span></div>
                       <div className="kv"><span>Finalización Formación:</span> <span className="v">{dateOnly(r[keys.fin])}</span></div>
-                      <div className="kv"><span>Cierre inscripción:</span> <span className="v">{dateOnly(r[keys.cierre])}</span></div>
+                      <div className="kv">
+                        <span>Cierre inscripción:</span> 
+                        <span className="v text-danger">{dateOnly(r[keys.cierre])}</span>
+                      </div>
                       
                       <div className="obs-box">
                         <strong>Horario:</strong> {ambienteEnOracion(r[keys.horario])} ({r[keys.horaInicio]} - {r[keys.horaFinal]})<br/>
